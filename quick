@@ -1,0 +1,57 @@
+#!/usr/bin/python
+import csv, sys, MySQLdb, time, os, fnmatch, string, re
+
+
+badStates = ['FL','IN','PA','PR','AA','AB','AE','AP','AS','ON','XX','NO','PW','FM','SK','MB','KA']
+
+fname = sys.argv[1]
+list_id = sys.argv[2]
+campaign_id = sys.argv[3]
+outfile = sys.argv[4]
+list_name = list_id
+
+reader = csv.DictReader(open(fname, 'rb'), delimiter=',')	#input reader instance
+writer = csv.writer(open(outfile, 'wb'), delimiter='|')
+
+phoneList = [] #de-dupe list
+count = 0 #counter
+
+db = MySQLdb.connect(user="cron", passwd="1234", host="127.0.0.1", db="asterisk")
+conn = db.cursor()   
+
+
+"""Iterate over CSV and """
+for row in reader:
+	phoneDigits = re.sub("\D","",row['PHONE'])
+	altPhoneDigits = re.sub("\D","",row['ALT_PHONE'])
+	state = row['STATE'].upper()
+	if state not in badStates:
+		if len(phoneDigits) == 10:
+			if phoneDigits not in phoneList:
+				phoneList.append(phoneDigits)
+				conn.execute("SELECT COUNT(*) FROM nanpa_codes WHERE npanxx = %s AND ocn !=''", (phoneDigits[0:6]))
+				result = conn.fetchone()
+				if campaign_id == '9000':
+					conn.execute("SELECT did FROM DID_CID_9000 WHERE state = %s", (state))
+					result = conn.fetchone()
+				if campaign_id == '9001':
+					conn.execute("SELECT did FROM DID_CID_9001 WHERE state = %s", (state))
+					result = conn.fetchone()
+				if result:
+					cid_did = result[0]
+				else:
+					cid_did = ''
+				print fname, list_id, campaign_id, count
+				writer.writerow(['','',str(list_id),'1',phoneDigits,'',row['FNAME'],'','','','','',row['CITY'].strip(),row['STATE'].strip(),'',row['ZIP'].strip(),'','','',altPhoneDigits,'',cid_did,'','','','',''])
+				count += 1
+os.rename(fname,'used/'+fname)
+
+			
+					
+			
+					
+					
+	
+
+
+
